@@ -112,6 +112,7 @@ async function render(){
       </div>
       <div class="actions">
         <button data-a="pay">Record Payment</button>
+        <button data-a="schedule" class="schedule-btn">Schedule</button>
         <button data-a="edit">Edit</button>
         <button data-a="history">History</button>
         <button data-a="del" class="danger">Delete</button>
@@ -290,12 +291,13 @@ $("payForm").onsubmit=async e=>{
       if(r.error){alert(r.error.message);return}
     }
 
-    if(principalPart>0){
-      const u=await sb.from("loans").update({
-        principal:Math.max(0,(+l.principal||0)-principalPart)
-      }).eq("id",id);
-      if(u.error){alert(u.error.message);return}
-    }
+    const newPrincipal=Math.max(0,(+l.principal||0)-principalPart);
+    const nextDate=addMonths(l.due_date||$("payDate").value,1);
+    const u=await sb.from("loans").update({
+      principal:newPrincipal,
+      due_date:newPrincipal>0?nextDate:null
+    }).eq("id",id);
+    if(u.error){alert(u.error.message);return}
   }else{
     const type=$("payType").value;
     const r=await sb.from("payments").insert({

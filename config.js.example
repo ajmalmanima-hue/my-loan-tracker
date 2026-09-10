@@ -1,0 +1,5 @@
+// Copy this file as config.js only if you need to recreate your configuration.
+// Use your existing public Supabase URL and public anon/publishable key.
+// NEVER use a service_role/secret key in a browser app.
+window.SUPABASE_URL="YOUR_SUPABASE_PROJECT_URL";
+window.SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY";

@@ -1,397 +1,72 @@
-const configured =
-  typeof window.SUPABASE_URL === "string" &&
-  typeof window.SUPABASE_ANON_KEY === "string" &&
-  !window.SUPABASE_URL.includes("YOUR_") &&
-  !window.SUPABASE_ANON_KEY.includes("YOUR_") &&
-  typeof window.supabase !== "undefined";
-
-const sb = configured
-  ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-  : null;
-
-let loans = [], editing = null, signup = false, paymentCache = {};
-
-const $ = x => document.getElementById(x);
-const money = n => new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(+n||0);
-const today = () => new Date().toISOString().slice(0,10);
-
-function notice(t){$("notice").textContent=t;$("notice").classList.remove("hidden")}
-function fmt(d){return d?new Date(d+"T00:00:00").toLocaleDateString("en-IN"):"Not set"}
-function frequencyMonths(f){return f==="quarterly"?3:f==="halfyearly"?6:12}
-function interest(l){
-  const annual = +l.principal * +l.interest_rate / 100;
-  return l.frequency==="quarterly" ? annual/4 : l.frequency==="halfyearly" ? annual/2 : annual;
-}
-function fields(){
-  const e=$("type").value==="emi";
-  $("emiFields").classList.toggle("hidden",!e);
-  $("intFields").classList.toggle("hidden",e);
-  $("emiDateFields").classList.toggle("hidden",!e);
-  $("emi").required=e;
-}
-function isOverdue(l){
-  return l.loan_type==="interest" && l.due_date && l.due_date < today();
-}
+const configured = typeof window.SUPABASE_URL === "string" && typeof window.SUPABASE_ANON_KEY === "string" && !window.SUPABASE_URL.includes("YOUR_") && !window.SUPABASE_ANON_KEY.includes("YOUR_") && typeof window.supabase !== "undefined";
+const sb = configured ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY) : null;
+let loans=[], editing=null, editingPayment=null, signup=false, paymentCache={};
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(+n||0);
+const today=()=>new Date().toISOString().slice(0,10);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const groupId=p=>{const m=String(p.note||"").match(/\[group:([^\]]+)\]/);return m?m[1]:null};
+const cleanNote=n=>String(n||"").replace(/\s*\[group:[^\]]+\]\s*/g," ").trim();
+const fmt=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-IN"):"Not set";
+const frequencyMonths=f=>f==="quarterly"?3:f==="halfyearly"?6:12;
+function interest(l){const annual=+l.principal*+l.interest_rate/100;return l.frequency==="quarterly"?annual/4:l.frequency==="halfyearly"?annual/2:annual}
+function isOverdue(l){return l.loan_type==="interest"&&l.due_date&&l.due_date<today()}
+function notice(t){$("notice").textContent=t;$("notice").classList.remove("hidden");setTimeout(()=>$("notice").classList.add("hidden"),4500)}
+function fields(){const e=$("type").value==="emi";$("emiFields").classList.toggle("hidden",!e);$("intFields").classList.toggle("hidden",e);$("emiDateFields").classList.toggle("hidden",!e);$("emi").required=e}
 async function load(){
   const r=await sb.from("loans").select("*").order("created_at");
   if(r.error){alert(r.error.message);return}
-  loans=r.data||[];
-
-  // Load payment history once, then render immediately from memory.
-  paymentCache={};
-  if(loans.length){
-    const p=await sb.from("payments").select("*").in("loan_id",loans.map(x=>x.id)).order("payment_date",{ascending:false});
-    if(p.error){alert(p.error.message);return}
-    for(const row of p.data||[]){
-      (paymentCache[row.loan_id] ||= []).push(row);
-    }
-  }
+  loans=r.data||[]; paymentCache={};
+  if(loans.length){const p=await sb.from("payments").select("*").in("loan_id",loans.map(x=>x.id)).order("payment_date",{ascending:false});if(p.error){alert(p.error.message);return}for(const row of p.data||[])(paymentCache[row.loan_id]??=[]).push(row)}
   render();
 }
-async function payments(id){
-  const r=await sb.from("payments").select("*").eq("loan_id",id).order("payment_date",{ascending:false});
-  if(r.error){alert(r.error.message);return []}
-  return r.data||[];
-}
-async function paymentTotals(id){
-  const ps=paymentCache[id] || await payments(id);
-  return {
-    payments:ps,
-    interestPaid:ps.filter(p=>p.payment_type==="interest").reduce((s,p)=>s+(+p.amount||0),0),
-    principalPaid:ps.filter(p=>p.payment_type==="principal").reduce((s,p)=>s+(+p.amount||0),0)
-  };
-}
-function filteredLoans(){
-  const q=$("search").value.trim().toLowerCase();
-  const f=$("filter").value;
-  return loans.filter(l=>{
-    const match=!q || l.name.toLowerCase().includes(q) || (l.notes||"").toLowerCase().includes(q);
-    const type=f==="all" || l.loan_type===f || (f==="overdue" && isOverdue(l));
-    return match && type;
-  });
-}
+function totals(id){const ps=paymentCache[id]||[];return {payments:ps,interestPaid:ps.filter(p=>p.payment_type==="interest").reduce((s,p)=>s+(+p.amount||0),0),principalPaid:ps.filter(p=>p.payment_type==="principal").reduce((s,p)=>s+(+p.amount||0),0)}}
+function filteredLoans(){const q=$("search").value.trim().toLowerCase(),f=$("filter").value;return loans.filter(l=>{const match=!q||l.name.toLowerCase().includes(q)||(l.notes||"").toLowerCase().includes(q);const type=f==="all"||l.loan_type===f||(f==="overdue"&&isOverdue(l));return match&&type})}
 function render(){
-  const emiTotal=loans.filter(x=>x.loan_type==="emi").reduce((s,x)=>s+ +x.principal,0);
-  const intTotal=loans.filter(x=>x.loan_type==="interest").reduce((s,x)=>s+ +x.principal,0);
-  const dueTotal=loans.filter(x=>x.loan_type==="interest").reduce((s,x)=>s+interest(x),0);
-  $("total").textContent=money(emiTotal+intTotal);
-  $("emiTotal").textContent=money(emiTotal);
-  $("intTotal").textContent=money(intTotal);
-  $("dueTotal").textContent=money(dueTotal);
-  $("overdueTotal").textContent=loans.filter(isOverdue).length;
-
-  let allInterestPaid=0;
-  for(const l of loans){
-    const t=await paymentTotals(l.id);
-    allInterestPaid+=t.interestPaid;
-  }
-  $("paidTotal").textContent=money(allInterestPaid);
-
-  const box=$("loans");
-  box.innerHTML="";
-  const list=filteredLoans();
-  if(!list.length){
-    box.innerHTML=`<div class="card">${loans.length?"No loans match your search/filter.":"No loans yet. Click <b>+ Add Loan</b> to begin."}</div>`;
-    return;
-  }
-
+  const emiTotal=loans.filter(l=>l.loan_type==="emi").reduce((s,l)=>s+ +l.principal,0), intTotal=loans.filter(l=>l.loan_type==="interest").reduce((s,l)=>s+ +l.principal,0), dueTotal=loans.filter(l=>l.loan_type==="interest").reduce((s,l)=>s+interest(l),0), paidTotal=loans.reduce((s,l)=>s+totals(l.id).interestPaid,0);
+  $("total").textContent=money(emiTotal+intTotal);$("monthlyEmiTotal").textContent=money(loans.filter(l=>l.loan_type==="emi").reduce((s,l)=>s+(+l.emi||0),0));$("intTotal").textContent=money(intTotal);$("dueTotal").textContent=money(dueTotal);$("paidTotal").textContent=money(paidTotal);$("overdueTotal").textContent=loans.filter(isOverdue).length;
+  const outstanding=emiTotal+intTotal; $("overviewText").textContent=loans.length?`${loans.length} loan${loans.length>1?'s':''} • ${money(outstanding)} outstanding`:"No loans yet";
+  const box=$("loans");box.innerHTML="";const list=filteredLoans();
+  if(!list.length){box.innerHTML=`<div class="card">${loans.length?"No loans match your search/filter.":"No loans yet. Click <b>+ Add Loan</b> to begin."}</div>`;return}
   for(const l of list){
-    const ps=paymentCache[l.id]||[];
-    const totals={
-      payments:ps,
-      interestPaid:ps.filter(p=>p.payment_type==="interest").reduce((s,p)=>s+(+p.amount||0),0),
-      principalPaid:ps.filter(p=>p.payment_type==="principal").reduce((s,p)=>s+(+p.amount||0),0)
-    };
-    const overdue=isOverdue(l);
-    const dueInterest=l.loan_type==="interest"?interest(l):0;
-    const status=l.loan_type==="interest"
-      ? (overdue?`<span class="badge overdue">Overdue</span>`:`<span class="badge ok">On track</span>`)
-      : `<span class="badge">Monthly EMI</span>`;
-
-    const a=document.createElement("article");
-    a.className="card loan";
-    const detail=l.loan_type==="emi"
-      ? `Monthly EMI: <b>${money(l.emi)}</b><br>Rate: <b>${l.interest_rate}% p.a.</b><br>Next EMI: <b>${fmt(l.due_date)}</b>`
-      : `Rate: <b>${l.interest_rate}% p.a.</b><br>${l.frequency} interest: <b>${money(dueInterest)}</b><br>Next due: <b>${fmt(l.due_date)}</b> ${status}`;
-
-    a.innerHTML=`
-      <div class="loanTop">
-        <div><h3>${l.name}</h3><span class="badge">${l.loan_type==="emi"?"EMI Loan":"Interest Only"}</span></div>
-        <strong class="balance">${money(l.principal)}</strong>
-      </div>
-      <div class="details">${detail}</div>
-      <div class="payment-summary">
-        <div class="mini">Interest paid<b>${money(totals.interestPaid)}</b></div>
-        <div class="mini">Principal paid<b>${money(totals.principalPaid)}</b></div>
-        <div class="mini">${l.loan_type==="interest"?"Current interest":"Next EMI"}<b>${l.loan_type==="interest"?money(dueInterest):money(l.emi)}</b></div>
-      </div>
-      <div class="actions">
-        <button data-a="pay">Record Payment</button>
-        <button data-a="schedule" class="schedule-btn">Schedule</button>
-        <button data-a="edit">Edit</button>
-        <button data-a="history">History</button>
-        <button data-a="del" class="danger">Delete</button>
-      </div>
-      <div class="history hidden"></div>`;
-
-    a.querySelector('[data-a="schedule"]').onclick=()=>showSchedule(l.id);
-    a.querySelector('[data-a="pay"]').onclick=()=>showPay(l.id);
-    a.querySelector('[data-a="edit"]').onclick=()=>showEdit(l.id);
-    a.querySelector('[data-a="del"]').onclick=async()=>{
-      if(!confirm("Delete this loan and its payment history?"))return;
-      const r=await sb.from("loans").delete().eq("id",l.id);
-      if(r.error)alert(r.error.message);else load();
-    };
-    a.querySelector('[data-a="history"]').onclick=async()=>{
-      const h=a.querySelector(".history");
-      h.classList.toggle("hidden");
-      if(!h.classList.contains("hidden")){
-        const ps=totals.payments;
-        h.innerHTML=ps.length
-          ? ps.map(p=>`<div>${fmt(p.payment_date)} — <b>${money(p.amount)}</b> — ${p.payment_type==="emi"?"EMI":p.payment_type}${p.note?" — "+p.note:""}</div>`).join("<hr>")
-          : "No payments recorded.";
-      }
-    };
+    const t=totals(l.id), due=l.loan_type==="interest"?interest(l):0, overdue=isOverdue(l);
+    const detail=l.loan_type==="emi"?`Monthly EMI: <b>${money(l.emi)}</b><br>Rate: <b>${l.interest_rate}% p.a.</b><br>Next EMI: <b>${fmt(l.due_date)}</b>`:`Rate: <b>${l.interest_rate}% p.a.</b><br>${esc(l.frequency)} interest: <b>${money(due)}</b><br>Next due: <b>${fmt(l.due_date)}</b> ${overdue?'<span class="badge overdue">Overdue</span>':'<span class="badge ok">On track</span>'}`;
+    const a=document.createElement("article");a.className="card loan";a.innerHTML=`<div class="loanTop"><div><h3>${esc(l.name)}</h3><span class="badge">${l.loan_type==="emi"?"EMI Loan":"Interest Only"}</span></div><strong class="balance">${money(l.principal)}</strong></div><div class="details">${detail}</div><div class="payment-summary"><div class="mini">Interest paid<b>${money(t.interestPaid)}</b></div><div class="mini">Principal paid<b>${money(t.principalPaid)}</b></div><div class="mini">${l.loan_type==="interest"?"Current interest":"Next EMI"}<b>${l.loan_type==="interest"?money(due):money(l.emi)}</b></div></div><div class="actions"><button data-a="pay">Record Payment</button>${l.loan_type==="emi"?'<button data-a="schedule" class="schedule-btn">Schedule</button>':''}<button data-a="edit">Edit</button><button data-a="history">History</button><button data-a="del" class="danger">Delete</button></div>`;
+    a.querySelector('[data-a="pay"]').onclick=()=>showPay(l.id);a.querySelector('[data-a="edit"]').onclick=()=>showEdit(l.id);a.querySelector('[data-a="history"]').onclick=()=>showHistory(l.id);a.querySelector('[data-a="del"]').onclick=async()=>{if(!confirm("Delete this loan and all its payment history?"))return;const r=await sb.from("loans").delete().eq("id",l.id);if(r.error)alert(r.error.message);else load()};
+    if(l.loan_type==="emi")a.querySelector('[data-a="schedule"]').onclick=()=>showSchedule(l.id);
     box.appendChild(a);
   }
 }
-function showAdd(){
-  editing=null;
-  $("loanTitle").textContent="Add Loan";
-  $("loanForm").reset();
-  $("type").value="interest";
-  fields();
-  $("loanSec").classList.remove("hidden");
-  $("paySec").classList.add("hidden");
-  $("scheduleSec").classList.add("hidden");
-}
-function showEdit(id){
-  const l=loans.find(x=>x.id===id); editing=id;
-  $("loanTitle").textContent="Edit Loan";
-  $("name").value=l.name;$("type").value=l.loan_type;$("principal").value=l.principal;
-  $("rate").value=l.interest_rate;$("emi").value=l.emi||"";
-  $("frequency").value=l.frequency||"yearly";
-  $("dueDate").value=l.loan_type==="interest"?(l.due_date||""):"";
-  $("emiDueDate").value=l.loan_type==="emi"?(l.due_date||""):"";
-  $("notes").value=l.notes||"";fields();
-  $("loanSec").classList.remove("hidden");$("paySec").classList.add("hidden");$("scheduleSec").classList.add("hidden");
-}
-function addMonths(dateString, months){
-  const d=new Date(dateString+"T00:00:00");
-  const day=d.getDate();
-  d.setMonth(d.getMonth()+months);
-  if(d.getDate()!==day)d.setDate(0);
-  return d.toISOString().slice(0,10);
-}
-function showSchedule(id){
-  const l=loans.find(x=>x.id===id);
-  if(!l||l.loan_type!=="emi")return;
-  let balance=Math.max(0,+l.principal||0);
-  const emi=Math.max(0,+l.emi||0);
-  const monthlyRate=Math.max(0,+l.interest_rate||0)/100/12;
-  let date=l.due_date||today();
-  const rows=[];
-  let totalInterest=0,totalPayment=0,n=0;
-  if(balance<=0){
-    $("scheduleBox").innerHTML="<b>This loan is already fully paid.</b>";
-  }else if(emi<=0){
-    $("scheduleBox").innerHTML="<b>Set an EMI amount greater than zero to generate the schedule.</b>";
-  }else{
-    while(balance>0.005 && n<600){
-      n++;
-      const opening=balance;
-      const interestPart=opening*monthlyRate;
-      const payment=Math.min(emi,opening+interestPart);
-      const principalPart=Math.max(0,payment-interestPart);
-      balance=Math.max(0,opening-principalPart);
-      totalInterest+=interestPart;
-      totalPayment+=payment;
-      rows.push({n,date,opening,interestPart,payment,principalPart,balance});
-      date=addMonths(date,1);
-    }
-    const firstDate=rows[0]?.date;
-    $("scheduleBox").innerHTML=`
-      <div class="schedule-head">
-        <div class="mini">Current balance<b>${money(l.principal)}</b></div>
-        <div class="mini">Future interest<b>${money(totalInterest)}</b></div>
-        <div class="mini">Future payments<b>${money(totalPayment)}</b></div>
-      </div>
-      <div class="schedule-note">Assumes the interest rate and EMI stay unchanged. Next EMI date: ${fmt(firstDate)}. Estimated payments: ${rows.length}.</div>
-      <div style="overflow:auto">
-      <table class="schedule-table">
-        <thead><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>EMI</th><th>Principal</th><th>Closing</th></tr></thead>
-        <tbody>${rows.map(r=>`<tr><td>${r.n}</td><td>${fmt(r.date)}</td><td>${money(r.opening)}</td><td>${money(r.interestPart)}</td><td>${money(r.payment)}</td><td>${money(r.principalPart)}</td><td>${money(r.balance)}</td></tr>`).join("")}</tbody>
-      </table></div>`;
-  }
-  $("scheduleSec").classList.remove("hidden");
-  $("loanSec").classList.add("hidden");
-  $("paySec").classList.add("hidden");
-  $("scheduleSec").scrollIntoView({behavior:"smooth",block:"start"});
-}
-function showPay(id){
-  const l=loans.find(x=>x.id===id);
-  $("payLoanId").value=id;
-  $("payLoanName").textContent=l.name;
-  $("payDate").value=today();
-  $("amount").value=l.loan_type==="emi"?l.emi:"";
-  $("payType").value="interest";
-  $("payNote").value="";
-  const isEmi=l.loan_type==="emi";
-  $("payTitle").textContent=isEmi?"Record EMI Payment":"Record Payment";
-  $("payTypeWrap").classList.toggle("hidden",isEmi);
-  $("emiPaymentHelp").classList.toggle("hidden",!isEmi);
-  $("emiSplit").classList.toggle("hidden",!isEmi);
-  if(isEmi) updateEmiSplit();
-  $("paySec").classList.remove("hidden");
-  $("loanSec").classList.add("hidden");
-}
-function updateEmiSplit(){
-  const id=$("payLoanId").value, l=loans.find(x=>x.id===id);
-  if(!l||l.loan_type!=="emi")return;
-  const amount=+$("amount").value||0;
-  const monthlyRate=(+l.interest_rate||0)/100/12;
-  const interestPart=monthlyRate*(+l.principal||0);
-  const principalPart=Math.max(0,Math.min(amount,amount-interestPart));
-  $("emiInterest").textContent=money(Math.min(amount,interestPart));
-  $("emiPrincipal").textContent=money(principalPart);
-}
-$("type").onchange=fields;
-$("add").onclick=showAdd;
-$("cancelLoan").onclick=()=>$("loanSec").classList.add("hidden");
-$("cancelPay").onclick=()=>$("paySec").classList.add("hidden");
-$("closeSchedule").onclick=()=>$("scheduleSec").classList.add("hidden");
-$("search").oninput=render;
-$("filter").onchange=render;
-
-$("loanForm").onsubmit=async e=>{
-  e.preventDefault();
-  const p={
-    name:$("name").value.trim(),loan_type:$("type").value,principal:+$("principal").value,
-    interest_rate:+$("rate").value,emi:+$("emi").value||0,frequency:$("frequency").value,
-    due_date:($("type").value==="emi"?$("emiDueDate").value:$("dueDate").value)||null,
-    notes:$("notes").value.trim()||null
-  };
-  const r=editing?await sb.from("loans").update(p).eq("id",editing):await sb.from("loans").insert(p);
-  if(r.error)alert(r.error.message);else{$("loanSec").classList.add("hidden");load();}
-};
-
-$("amount").oninput=updateEmiSplit;
-$("payForm").onsubmit=async e=>{
-  e.preventDefault();
-  const id=$("payLoanId").value, amt=+$("amount").value;
-  if(!amt||amt<=0)return;
-  const l=loans.find(x=>x.id===id);
-  if(!l)return;
-
-  if(l.loan_type==="emi"){
-    const monthlyRate=(+l.interest_rate||0)/100/12;
-    const interestPart=Math.min(amt,Math.max(0,monthlyRate*(+l.principal||0)));
-    const principalPart=Math.max(0,amt-interestPart);
-
-    // Store the EMI as two database entries because the existing
-    // payments table intentionally allows only "interest" or "principal".
-    const baseNote=$("payNote").value.trim();
-    const rows=[];
-    if(interestPart>0) rows.push({
-      loan_id:id,payment_date:$("payDate").value,amount:interestPart,
-      payment_type:"interest",note:`EMI interest${baseNote?" — "+baseNote:""}`
-    });
-    if(principalPart>0) rows.push({
-      loan_id:id,payment_date:$("payDate").value,amount:principalPart,
-      payment_type:"principal",note:`EMI principal${baseNote?" — "+baseNote:""}`
-    });
-
-    if(rows.length){
-      const r=await sb.from("payments").insert(rows);
-      if(r.error){alert(r.error.message);return}
-    }
-
-    const newPrincipal=Math.max(0,(+l.principal||0)-principalPart);
-    const nextDate=addMonths(l.due_date||$("payDate").value,1);
-    const u=await sb.from("loans").update({
-      principal:newPrincipal,
-      due_date:newPrincipal>0?nextDate:null
-    }).eq("id",id);
-    if(u.error){alert(u.error.message);return}
-  }else{
-    const type=$("payType").value;
-    const r=await sb.from("payments").insert({
-      loan_id:id,payment_date:$("payDate").value,amount:amt,
-      payment_type:type,note:$("payNote").value.trim()||null
-    });
-    if(r.error){alert(r.error.message);return}
-
-    if(type==="principal"){
-      const q=await sb.from("loans").select("principal").eq("id",id).single();
-      if(q.error){alert(q.error.message);return}
-      const u=await sb.from("loans").update({
-        principal:Math.max(0,+q.data.principal-amt)
-      }).eq("id",id);
-      if(u.error){alert(u.error.message);return}
-    }
-  }
-
-  $("paySec").classList.add("hidden");
-  load();
-};
-
-$("backup").onclick=async()=>{
-  const r=await sb.from("loans").select("*");
-  if(r.error){alert(r.error.message);return}
-  const all=[];
-  for(const l of r.data||[])all.push({...l,payments:await payments(l.id)});
-  const b=new Blob([JSON.stringify({version:3,exported:new Date().toISOString(),loans:all},null,2)],{type:"application/json"});
-  const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="loan-tracker-v3-backup.json";a.click();
-  URL.revokeObjectURL(a.href);
-};
-
-$("toggle").onclick=e=>{
-  e.preventDefault();signup=!signup;
-  $("authTitle").textContent=signup?"Create account":"Sign in";
-  $("authBtn").textContent=signup?"Create account":"Sign in";
-  $("password").autocomplete=signup?"new-password":"current-password";
-  $("toggle").textContent=signup?"Already have an account? Sign in":"Create a new account";
-};
-
-$("authForm").onsubmit=async e=>{
-  e.preventDefault();
-  if(!sb){$("authMsg").textContent="Supabase is not configured. Check config.js.";return}
-  $("authBtn").disabled=true;
-  $("authMsg").textContent=signup?"Creating account...":"Signing in...";
-  try{
-    const email=$("email").value.trim(), password=$("password").value;
-    const r=signup
-      ? await sb.auth.signUp({email,password})
-      : await sb.auth.signInWithPassword({email,password});
-    if(r.error)throw r.error;
-    if(signup&&!r.data.session){
-      $("authMsg").textContent="Account created. Check your email to confirm it, then sign in.";
-      return;
-    }
-    if(r.data.user)await show(r.data.user);
-  }catch(err){
-    $("authMsg").textContent=err.message||String(err);
-  }finally{$("authBtn").disabled=false}
-};
-
-async function show(u){
-  $("auth").classList.add("hidden");$("app").classList.remove("hidden");
-  $("userArea").classList.remove("hidden");$("userEmail").textContent=u.email||"";
-  await load();
-}
+function hideSections(){["loanSec","paySec","scheduleSec","historySec","simSec"].forEach(id=>$(id).classList.add("hidden"))}
+function showAdd(){editing=null;$("loanTitle").textContent="Add Loan";$("loanForm").reset();$("type").value="interest";fields();hideSections();$("loanSec").classList.remove("hidden");$("loanSec").scrollIntoView({behavior:"smooth"})}
+function showEdit(id){const l=loans.find(x=>x.id===id);if(!l)return;editing=id;$("loanTitle").textContent="Edit Loan";$("name").value=l.name;$("type").value=l.loan_type;$("principal").value=l.principal;$("rate").value=l.interest_rate;$("emi").value=l.emi||"";$("frequency").value=l.frequency||"yearly";$("dueDate").value=l.loan_type==="interest"?(l.due_date||""):"";$("emiDueDate").value=l.loan_type==="emi"?(l.due_date||""):"";$("notes").value=l.notes||"";fields();hideSections();$("loanSec").classList.remove("hidden");$("loanSec").scrollIntoView({behavior:"smooth"})}
+function addMonths(s,m){const d=new Date(s+"T00:00:00"),day=d.getDate();d.setMonth(d.getMonth()+m);if(d.getDate()!==day)d.setDate(0);return d.toISOString().slice(0,10)}
+function showSchedule(id){const l=loans.find(x=>x.id===id);if(!l||l.loan_type!=="emi")return;let bal=Math.max(0,+l.principal||0),emi=Math.max(0,+l.emi||0),mr=Math.max(0,+l.interest_rate||0)/100/12,date=l.due_date||today(),rows=[],ti=0,tp=0,n=0;if(!bal)$("scheduleBox").innerHTML="<b>This loan is already fully paid.</b>";else if(!emi)$("scheduleBox").innerHTML="<b>Set an EMI amount greater than zero.</b>";else{while(bal>.005&&n<600){n++;const opening=bal,ip=opening*mr,pay=Math.min(emi,opening+ip),pp=Math.max(0,pay-ip);bal=Math.max(0,opening-pp);ti+=ip;tp+=pay;rows.push({n,date,opening,ip,pay,pp,bal});date=addMonths(date,1)}$("scheduleBox").innerHTML=`<div class="schedule-head"><div class="mini">Current balance<b>${money(l.principal)}</b></div><div class="mini">Future interest<b>${money(ti)}</b></div><div class="mini">Future payments<b>${money(tp)}</b></div></div><div class="schedule-note">Assumes the interest rate and EMI stay unchanged. Next EMI: ${fmt(rows[0]?.date)} • ${rows.length} payments.</div><div style="overflow:auto"><table class="schedule-table"><thead><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>EMI</th><th>Principal</th><th>Closing</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.n}</td><td>${fmt(r.date)}</td><td>${money(r.opening)}</td><td>${money(r.ip)}</td><td>${money(r.pay)}</td><td>${money(r.pp)}</td><td>${money(r.bal)}</td></tr>`).join("")}</tbody></table></div>`}hideSections();$("scheduleSec").classList.remove("hidden");$("scheduleSec").scrollIntoView({behavior:"smooth"})}
+function showPay(id){const l=loans.find(x=>x.id===id);if(!l)return;editingPayment=null;$("payLoanId").value=id;$("payGroupId").value="";$("payLoanName").textContent=l.name;$("payDate").value=today();$("amount").value=l.loan_type==="emi"?l.emi:"";$("payType").value="interest";$("payNote").value="";const e=l.loan_type==="emi";$("payTitle").textContent=e?"Record EMI Payment":"Record Payment";$("paySubmit").textContent=e?"Record EMI Payment":"Record Payment";$("payTypeWrap").classList.toggle("hidden",e);$("emiPaymentHelp").classList.toggle("hidden",!e);$("emiSplit").classList.toggle("hidden",!e);if(e)updateEmiSplit();hideSections();$("paySec").classList.remove("hidden");$("paySec").scrollIntoView({behavior:"smooth"})}
+function updateEmiSplit(){const l=loans.find(x=>x.id===$("payLoanId").value);if(!l||l.loan_type!=="emi")return;const amt=+$('amount').value||0,ip=Math.min(amt,Math.max(0,(+l.principal||0)*(+l.interest_rate||0)/100/12));$("emiInterest").textContent=money(ip);$("emiPrincipal").textContent=money(Math.max(0,amt-ip))}
+function showHistory(id){const l=loans.find(x=>x.id===id);if(!l)return;const ps=paymentCache[id]||[], rows=[];const used=new Set();for(const p of ps){if(used.has(p.id))continue;const g=groupId(p);if(g){const pair=ps.filter(x=>groupId(x)===g);pair.forEach(x=>used.add(x.id));const ip=pair.filter(x=>x.payment_type==="interest").reduce((s,x)=>s+(+x.amount||0),0),pp=pair.filter(x=>x.payment_type==="principal").reduce((s,x)=>s+(+x.amount||0),0);rows.push({kind:"emi",ids:pair.map(x=>x.id),date:pair[0].payment_date,total:ip+pp,ip,pp,note:cleanNote(pair[0].note),group:g})}else{used.add(p.id);rows.push({kind:p.payment_type,ids:[p.id],date:p.payment_date,total:+p.amount||0,ip:p.payment_type==="interest"?+p.amount:0,pp:p.payment_type==="principal"?+p.amount:0,note:p.note||"",group:null})}}
+  $("historyTitle").textContent=`Payment History — ${l.name}`;$("historyBox").dataset.loan=id;$("historyBox").innerHTML=rows.length?rows.map(r=>`<div class="historyRow"><div><b>${fmt(r.date)}</b> — ${r.kind==="emi"?"EMI":""}${r.kind!=="emi"?esc(r.kind):""}<div class="historyMeta">${r.kind==="emi"?`Total ${money(r.total)} • Interest ${money(r.ip)} • Principal ${money(r.pp)}`:money(r.total)}${r.note?` • ${esc(r.note)}`:""}</div></div><div class="historyActions"><button data-edit="${r.ids.join(",")}" data-group="${r.group||""}">Edit</button><button class="danger" data-del="${r.ids.join(",")}" data-group="${r.group||""}">Delete</button></div></div>`).join(""):"No payments recorded.";
+  $("historyBox").querySelectorAll("button[data-edit]").forEach(b=>b.onclick=()=>b.dataset.group?editEmiGroup(b.dataset.group):editSinglePayment(b.dataset.edit));$("historyBox").querySelectorAll("button[data-del]").forEach(b=>b.onclick=()=>b.dataset.group?deletePaymentGroup(b.dataset.group):deleteSinglePayment(b.dataset.del));hideSections();$("historySec").classList.remove("hidden");$("historySec").scrollIntoView({behavior:"smooth"})}
+function editSinglePayment(id){const p=(paymentCache[$("historyBox").dataset.loan]||[]).find(x=>x.id===id)||Object.values(paymentCache).flat().find(x=>x.id===id);if(!p)return;editingPayment={id:p.id,loanId:p.loan_id,type:p.payment_type};const l=loans.find(x=>x.id===p.loan_id);$("payLoanId").value=l.id;$("payGroupId").value="";$("payLoanName").textContent=l.name;$("payDate").value=p.payment_date;$("amount").value=p.amount;$("payType").value=p.payment_type;$("payNote").value=p.note||"";$("payTitle").textContent="Edit Payment";$("paySubmit").textContent="Save Changes";$("payTypeWrap").classList.remove("hidden");$("emiPaymentHelp").classList.add("hidden");$("emiSplit").classList.add("hidden");hideSections();$("paySec").classList.remove("hidden");$("paySec").scrollIntoView({behavior:"smooth"})}
+function editEmiGroup(g){const all=Object.values(paymentCache).flat(),pair=all.filter(p=>groupId(p)===g);if(!pair.length)return;const l=loans.find(x=>x.id===pair[0].loan_id);editingPayment={group:g,loanId:l.id,oldPrincipal:pair.filter(x=>x.payment_type==="principal").reduce((s,x)=>s+(+x.amount||0),0),ids:pair.map(x=>x.id)};$("payLoanId").value=l.id;$("payGroupId").value=g;$("payLoanName").textContent=l.name;$("payDate").value=pair[0].payment_date;$("amount").value=pair.reduce((s,x)=>s+(+x.amount||0),0);$("payNote").value=cleanNote(pair[0].note);$("payTitle").textContent="Edit EMI Payment";$("paySubmit").textContent="Save EMI Changes";$("payTypeWrap").classList.add("hidden");$("emiPaymentHelp").classList.remove("hidden");$("emiSplit").classList.remove("hidden");updateEmiSplit();hideSections();$("paySec").classList.remove("hidden");$("paySec").scrollIntoView({behavior:"smooth"})}
+async function deleteSinglePayment(id){const all=Object.values(paymentCache).flat(),p=all.find(x=>x.id===id);if(!p||!confirm("Delete this payment?"))return;const r=await sb.from("payments").delete().eq("id",id);if(r.error){alert(r.error.message);return}if(p.payment_type==="principal"){const l=loans.find(x=>x.id===p.loan_id);const u=await sb.from("loans").update({principal:+l.principal+(+p.amount||0)}).eq("id",l.id);if(u.error){alert(u.error.message);return}}load()}
+async function deletePaymentGroup(g){const all=Object.values(paymentCache).flat(),pair=all.filter(p=>groupId(p)===g);if(!pair.length||!confirm("Delete this EMI payment and restore its principal?"))return;const l=loans.find(x=>x.id===pair[0].loan_id),pp=pair.filter(x=>x.payment_type==="principal").reduce((s,x)=>s+(+x.amount||0),0);const r=await sb.from("payments").delete().in("id",pair.map(x=>x.id));if(r.error){alert(r.error.message);return}const u=await sb.from("loans").update({principal:+l.principal+pp,due_date:l.due_date?addMonths(l.due_date,-1):l.due_date}).eq("id",l.id);if(u.error){alert(u.error.message);return}load()}
+$("type").onchange=fields;$("add").onclick=showAdd;$("cancelLoan").onclick=()=>$("loanSec").classList.add("hidden");$("cancelPay").onclick=()=>$("paySec").classList.add("hidden");$("closeSchedule").onclick=()=>$("scheduleSec").classList.add("hidden");$("closeHistory").onclick=()=>$("historySec").classList.add("hidden");$("closeSim").onclick=()=>$("simSec").classList.add("hidden");$("search").oninput=render;$("filter").onchange=render;$("amount").oninput=updateEmiSplit;
+$("loanForm").onsubmit=async e=>{e.preventDefault();const p={name:$("name").value.trim(),loan_type:$("type").value,principal:+$("principal").value,interest_rate:+$("rate").value,emi:+$("emi").value||0,frequency:$("frequency").value,due_date:($("type").value==="emi"?$("emiDueDate").value:$("dueDate").value)||null,notes:$("notes").value.trim()||null};const r=editing?await sb.from("loans").update(p).eq("id",editing):await sb.from("loans").insert(p);if(r.error)alert(r.error.message);else{$("loanSec").classList.add("hidden");load()}};
+$("payForm").onsubmit=async e=>{e.preventDefault();const id=$("payLoanId").value,amt=+$('amount').value,l=loans.find(x=>x.id===id);if(!l||!amt||amt<=0)return;const date=$("payDate").value,note=$("payNote").value.trim();
+  if(editingPayment?.group){const all=Object.values(paymentCache).flat(),pair=all.filter(p=>groupId(p)===editingPayment.group),oldPP=editingPayment.oldPrincipal,mr=(+l.interest_rate||0)/100/12,ip=Math.min(amt,Math.max(0,(+l.principal+oldPP||0)*mr)),pp=Math.max(0,amt-ip),newBal=Math.max(0,+l.principal+oldPP-pp);const ur=await sb.from("loans").update({principal:newBal,due_date:newBal>0?addMonths(l.due_date||date,1):null}).eq("id",id);if(ur.error){alert(ur.error.message);return}for(const p of pair){const val=p.payment_type==="interest"?ip:pp;const rr=await sb.from("payments").update({payment_date:date,amount:val,note:`${p.payment_type==="interest"?"EMI interest":"EMI principal"}${note?" — "+note:""} [group:${editingPayment.group}]`}).eq("id",p.id);if(rr.error){alert(rr.error.message);return}}
+  }else if(editingPayment?.id){const old=Object.values(paymentCache).flat().find(p=>p.id===editingPayment.id);if(!old){alert("Payment not found");return}if(old.payment_type==="principal"&&editingPayment.type==="principal"){const newBal=Math.max(0,+l.principal+(+old.amount||0)-amt);const u=await sb.from("loans").update({principal:newBal}).eq("id",id);if(u.error){alert(u.error.message);return}}else if(old.payment_type!==$("payType").value){if(old.payment_type==="principal"){const u=await sb.from("loans").update({principal:+l.principal+(+old.amount||0)}).eq("id",id);if(u.error){alert(u.error.message);return}}if($("payType").value==="principal"){const u=await sb.from("loans").update({principal:Math.max(0,+l.principal-amt)}).eq("id",id);if(u.error){alert(u.error.message);return}}}const rr=await sb.from("payments").update({payment_date:date,amount:amt,payment_type:$("payType").value,note:note||null}).eq("id",old.id);if(rr.error){alert(rr.error.message);return}
+  }else if(l.loan_type==="emi"){const g=crypto.randomUUID?crypto.randomUUID():Date.now().toString();const mr=(+l.interest_rate||0)/100/12,ip=Math.min(amt,Math.max(0,(+l.principal||0)*mr)),pp=Math.max(0,amt-ip),rows=[];if(ip>0)rows.push({loan_id:id,payment_date:date,amount:ip,payment_type:"interest",note:`EMI interest${note?" — "+note:""} [group:${g}]`});if(pp>0)rows.push({loan_id:id,payment_date:date,amount:pp,payment_type:"principal",note:`EMI principal${note?" — "+note:""} [group:${g}]`});const rr=await sb.from("payments").insert(rows);if(rr.error){alert(rr.error.message);return}const nb=Math.max(0,+l.principal-pp),u=await sb.from("loans").update({principal:nb,due_date:nb>0?addMonths(l.due_date||date,1):null}).eq("id",id);if(u.error){alert(u.error.message);return}
+  }else{const typ=$("payType").value,rr=await sb.from("payments").insert({loan_id:id,payment_date:date,amount:amt,payment_type:typ,note:note||null});if(rr.error){alert(rr.error.message);return}if(typ==="principal"){const u=await sb.from("loans").update({principal:Math.max(0,+l.principal-amt)}).eq("id",id);if(u.error){alert(u.error.message);return}}}
+  editingPayment=null;$("paySec").classList.add("hidden");load()};
+$("backup").onclick=async()=>{const r=await sb.from("loans").select("*");if(r.error){alert(r.error.message);return}const all=[];for(const l of r.data||[]){const p=await sb.from("payments").select("*").eq("loan_id",l.id);all.push({...l,payments:p.data||[]})}const b=new Blob([JSON.stringify({version:4,exported:new Date().toISOString(),loans:all},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="loan-tracker-v4-backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$("toggle").onclick=()=>{signup=!signup;$("authTitle").textContent=signup?"Create account":"Sign in";$("authBtn").textContent=signup?"Create account":"Sign in";$("password").autocomplete=signup?"new-password":"current-password";$("toggle").textContent=signup?"Already have an account? Sign in":"Create a new account"};
+$("authForm").onsubmit=async e=>{e.preventDefault();if(!sb){$("authMsg").textContent="Supabase is not configured. Keep your existing config.js in the GitHub repository.";return}$("authBtn").disabled=true;$("authMsg").textContent=signup?"Creating account...":"Signing in...";try{const email=$("email").value.trim(),password=$("password").value,r=signup?await sb.auth.signUp({email,password}):await sb.auth.signInWithPassword({email,password});if(r.error)throw r.error;if(signup&&!r.data.session){$("authMsg").textContent="Account created. Check your email to confirm it, then sign in.";return}if(r.data.user)await show(r.data.user)}catch(err){$("authMsg").textContent=err.message||String(err)}finally{$("authBtn").disabled=false}};
+async function show(u){$("auth").classList.add("hidden");$("app").classList.remove("hidden");$("userArea").classList.remove("hidden");$("userEmail").textContent=u.email||"";await load()}
 $("logoutBtn").onclick=()=>sb.auth.signOut();
-
-async function init(){
-  if(!configured){notice("Supabase setup required: check config.js and the Supabase script.");return}
-  try{
-    const r=await sb.auth.getSession();
-    if(r.error)throw r.error;
-    if(r.data.session?.user)await show(r.data.session.user);
-  }catch(err){$("authMsg").textContent=err.message||String(err)}
-  sb.auth.onAuthStateChange((event,s)=>{
-    if(event==="SIGNED_IN"&&s)show(s.user);
-    if(event==="SIGNED_OUT")location.reload();
-  });
-}
-if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js");
-init();
+function showSim(){const sel=$("simLoan");sel.innerHTML=loans.filter(l=>l.loan_type==="emi").map(l=>`<option value="${l.id}">${esc(l.name)}</option>`).join("");$("simResult").innerHTML=loans.some(l=>l.loan_type==="emi")?"Choose an EMI loan and enter an extra payment.":"No EMI loans available.";hideSections();$("simSec").classList.remove("hidden");$("simSec").scrollIntoView({behavior:"smooth"})}
+function runSim(){const l=loans.find(x=>x.id===$("simLoan").value),extra=Math.max(0,+$("simExtra").value||0);if(!l){return}let base=project(l,0),fast=project(l,Math.min(extra,+l.principal));$("simResult").innerHTML=`<div class="compare"><div class="card"><b>Without extra payment</b><p>${base.n} payments</p><p>Total future interest: <b>${money(base.i)}</b></p></div><div class="card"><b>With ${money(extra)} extra</b><p>${fast.n} payments</p><p>Total future interest: <b>${money(fast.i)}</b></p><p class="good">Interest saved: ${money(Math.max(0,base.i-fast.i))}</p></div></div>`}
+function project(l,extra){let bal=Math.max(0,+l.principal-extra),emi=Math.max(0,+l.emi),mr=Math.max(0,+l.interest_rate)/100/12,n=0,i=0;while(bal>.005&&emi>0&&n<600){n++;const ip=bal*mr,pay=Math.min(emi,bal+ip);i+=ip;bal=Math.max(0,bal-(pay-ip))}return{n,i}}
+$("simulatorBtn").onclick=showSim;$("runSim").onclick=runSim;
+async function init(){if(!configured){notice("Supabase setup required. Keep your working config.js file; do not replace it with the example.");return}try{const r=await sb.auth.getSession();if(r.error)throw r.error;if(r.data.session?.user)await show(r.data.session.user)}catch(err){$("authMsg").textContent=err.message||String(err)}sb.auth.onAuthStateChange((event,s)=>{if(event==="SIGNED_IN"&&s)show(s.user);if(event==="SIGNED_OUT")location.reload()})}
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});init();

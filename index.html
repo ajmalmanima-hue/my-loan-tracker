@@ -1,137 +1,27 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#1f2937">
-<link rel="manifest" href="manifest.json">
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1f2937"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css">
 <title>My Loan Tracker</title>
 </head>
 <body>
-<header>
-  <div>
-    <h1>My Loan Tracker</h1>
-    <p>Cloud database • EMI & interest-only</p>
-  </div>
-  <div id="userArea" class="hidden">
-    <span id="userEmail"></span>
-    <button id="logoutBtn">Log out</button>
-  </div>
-</header>
-
+<header><div><h1>My Loan Tracker</h1><p>Loan management • EMI & interest-only</p></div><div id="userArea" class="hidden"><span id="userEmail"></span><button id="logoutBtn">Log out</button></div></header>
 <div id="notice" class="notice hidden"></div>
-
-<section id="auth" class="auth">
-  <div class="card">
-    <h2 id="authTitle">Sign in</h2>
-    <p id="authMsg">Your records are stored in your private Supabase database.</p>
-    <form id="authForm">
-      <label>Email<input id="email" type="email" required autocomplete="email"></label>
-      <label>Password<input id="password" type="password" minlength="6" required autocomplete="current-password"></label>
-      <button class="primary" type="submit" id="authBtn">Sign in</button>
-    </form>
-    <button type="button" class="link" id="toggle">Create a new account</button>
-  </div>
-</section>
-
+<section id="auth" class="auth"><div class="card authCard"><h2 id="authTitle">Sign in</h2><p id="authMsg">Your records are stored in your private Supabase database.</p><form id="authForm"><label>Email<input id="email" type="email" required autocomplete="email"></label><label>Password<input id="password" type="password" minlength="6" required autocomplete="current-password"></label><button class="primary" type="submit" id="authBtn">Sign in</button></form><button type="button" class="link" id="toggle">Create a new account</button></div></section>
 <main id="app" class="hidden">
-  <section class="summary">
-    <div class="card"><span>Total Outstanding</span><strong id="total">₹0.00</strong></div>
-    <div class="card"><span>EMI Loans</span><strong id="emiTotal">₹0.00</strong></div>
-    <div class="card"><span>Interest Only</span><strong id="intTotal">₹0.00</strong></div>
-    <div class="card"><span>Interest Due</span><strong id="dueTotal">₹0.00</strong></div>
-    <div class="card"><span>Interest Paid</span><strong id="paidTotal">₹0.00</strong></div>
-    <div class="card"><span>Overdue</span><strong id="overdueTotal">0</strong></div>
-  </section>
-
-  <div class="bar">
-    <h2>My Loans</h2>
-    <div class="toolbar">
-      <input id="search" class="search" type="search" placeholder="Search loans…">
-      <select id="filter">
-        <option value="all">All loans</option>
-        <option value="emi">EMI loans</option>
-        <option value="interest">Interest only</option>
-        <option value="overdue">Overdue</option>
-      </select>
-      <button id="backup">Backup</button>
-      <button class="primary" id="add">+ Add Loan</button>
-    </div>
-  </div>
-
-  <div id="loans"></div>
-
-  <section id="loanSec" class="hidden">
-    <h2 id="loanTitle">Add Loan</h2>
-    <form id="loanForm" class="card">
-      <label>Loan name<input id="name" required placeholder="Agricultural Loan"></label>
-      <label>Loan type
-        <select id="type">
-          <option value="interest">Interest Only / Yearly Renewal</option>
-          <option value="emi">EMI Loan</option>
-        </select>
-      </label>
-      <label>Current principal (₹)<input id="principal" type="number" min="0" step=".01" required></label>
-      <label>Interest rate (% p.a.)<input id="rate" type="number" min="0" step=".01" required></label>
-      <div id="emiFields" class="hidden">
-        <label>Monthly EMI (₹)<input id="emi" type="number" min="0" step=".01"></label>
-      </div>
-      <div id="intFields">
-        <label>Frequency
-          <select id="frequency">
-            <option value="yearly">Yearly</option>
-            <option value="halfyearly">Half-yearly</option>
-            <option value="quarterly">Quarterly</option>
-          </select>
-        </label>
-        <label>Next due date<input id="dueDate" type="date"></label>
-      </div>
-      <div id="emiDateFields" class="hidden">
-        <label>Next EMI date<input id="emiDueDate" type="date"></label>
-      </div>
-      <label>Notes<input id="notes"></label>
-      <button class="primary" type="submit">Save Loan</button>
-      <button type="button" id="cancelLoan">Cancel</button>
-    </form>
-  </section>
-
-  <section id="scheduleSec" class="hidden">
-    <h2>Future EMI Schedule</h2>
-    <div id="scheduleBox" class="card"></div>
-    <button type="button" id="closeSchedule">Close</button>
-  </section>
-
-  <section id="paySec" class="hidden">
-    <h2 id="payTitle">Record Payment</h2>
-    <form id="payForm" class="card">
-      <b id="payLoanName"></b>
-      <input id="payLoanId" type="hidden">
-      <div id="emiPaymentHelp" class="help hidden">For an EMI loan, the payment is one combined EMI. The app will calculate the interest and principal portions automatically.</div>
-      <label>Date<input id="payDate" type="date" required></label>
-      <label>Amount (₹)<input id="amount" type="number" min="0.01" step=".01" required></label>
-      <div id="payTypeWrap">
-        <label>Type
-          <select id="payType">
-            <option value="interest">Interest</option>
-            <option value="principal">Principal</option>
-          </select>
-        </label>
-      </div>
-      <div id="emiSplit" class="payment-summary hidden">
-        <div class="mini">Interest portion<b id="emiInterest">₹0.00</b></div>
-        <div class="mini">Principal portion<b id="emiPrincipal">₹0.00</b></div>
-      </div>
-      <label>Note<input id="payNote"></label>
-      <button class="primary" type="submit">Record Payment</button>
-      <button type="button" id="cancelPay">Cancel</button>
-    </form>
-  </section>
+<section class="summary">
+<div class="card"><span>Total Outstanding</span><strong id="total">₹0.00</strong></div><div class="card"><span>Monthly EMI</span><strong id="monthlyEmiTotal">₹0.00</strong></div><div class="card"><span>Interest Only</span><strong id="intTotal">₹0.00</strong></div><div class="card"><span>Interest Due</span><strong id="dueTotal">₹0.00</strong></div><div class="card"><span>Interest Paid</span><strong id="paidTotal">₹0.00</strong></div><div class="card"><span>Overdue</span><strong id="overdueTotal">0</strong></div>
+</section>
+<section class="quick card"><div><b>Debt overview</b><span id="overviewText">Loading…</span></div><button id="simulatorBtn">Extra Payment Simulator</button></section>
+<div class="bar"><h2>My Loans</h2><div class="toolbar"><input id="search" class="search" type="search" placeholder="Search loans…"><select id="filter"><option value="all">All loans</option><option value="emi">EMI loans</option><option value="interest">Interest only</option><option value="overdue">Overdue</option></select><button id="backup">Backup</button><button class="primary" id="add">+ Add Loan</button></div></div>
+<div id="loans"></div>
+<section id="loanSec" class="hidden"><h2 id="loanTitle">Add Loan</h2><form id="loanForm" class="card"><label>Loan name<input id="name" required placeholder="Gold Loan"></label><label>Loan type<select id="type"><option value="interest">Interest Only / Yearly Renewal</option><option value="emi">EMI Loan</option></select></label><label>Current principal (₹)<input id="principal" type="number" min="0" step=".01" required></label><label>Interest rate (% p.a.)<input id="rate" type="number" min="0" step=".01" required></label><div id="emiFields" class="hidden"><label>Monthly EMI (₹)<input id="emi" type="number" min="0" step=".01"></label></div><div id="intFields"><label>Frequency<select id="frequency"><option value="yearly">Yearly</option><option value="halfyearly">Half-yearly</option><option value="quarterly">Quarterly</option></select></label><label>Next due date<input id="dueDate" type="date"></label></div><div id="emiDateFields" class="hidden"><label>Next EMI date<input id="emiDueDate" type="date"></label></div><label>Notes<input id="notes"></label><div class="formActions"><button class="primary" type="submit">Save Loan</button><button type="button" id="cancelLoan">Cancel</button></div></form></section>
+<section id="scheduleSec" class="hidden"><div class="sectionTitle"><h2>Future EMI Schedule</h2><button type="button" id="closeSchedule">Close</button></div><div id="scheduleBox" class="card"></div></section>
+<section id="historySec" class="hidden"><div class="sectionTitle"><h2 id="historyTitle">Payment History</h2><button type="button" id="closeHistory">Close</button></div><div id="historyBox" class="card"></div></section>
+<section id="paySec" class="hidden"><h2 id="payTitle">Record Payment</h2><form id="payForm" class="card"><b id="payLoanName"></b><input id="payLoanId" type="hidden"><input id="payGroupId" type="hidden"><div id="emiPaymentHelp" class="help hidden">For an EMI loan, enter the combined EMI. The app calculates the interest and principal portions automatically.</div><label>Date<input id="payDate" type="date" required></label><label>Amount (₹)<input id="amount" type="number" min="0.01" step=".01" required></label><div id="payTypeWrap"><label>Type<select id="payType"><option value="interest">Interest</option><option value="principal">Principal</option></select></label></div><div id="emiSplit" class="payment-summary hidden"><div class="mini">Interest portion<b id="emiInterest">₹0.00</b></div><div class="mini">Principal portion<b id="emiPrincipal">₹0.00</b></div></div><label>Note<input id="payNote"></label><div class="formActions"><button class="primary" type="submit" id="paySubmit">Record Payment</button><button type="button" id="cancelPay">Cancel</button></div></form></section>
+<section id="simSec" class="hidden"><div class="sectionTitle"><h2>Extra Principal Simulator</h2><button type="button" id="closeSim">Close</button></div><div class="card"><label>Choose EMI loan<select id="simLoan"></select></label><label>Extra principal payment now (₹)<input id="simExtra" type="number" min="0" step=".01" value="0"></label><button class="primary" id="runSim" type="button">Calculate</button><div id="simResult" class="simResult"></div></div></section>
 </main>
-
-<footer>V3 • Loan records are stored in Supabase PostgreSQL.</footer>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
-<script src="app.js"></script>
-</body>
-</html>
+<footer>V4 • Loan records are stored securely in your Supabase database.</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script><script src="app.js"></script>
+</body></html>

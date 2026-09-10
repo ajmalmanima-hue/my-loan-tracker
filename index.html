@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f2937">
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<title>My Loan Tracker</title>
+</head>
+<body>
+<header>
+  <div><h1>My Loan Tracker</h1><p>EMI & interest-only loans</p></div>
+  <button id="addBtn" class="primary">+ Add Loan</button>
+</header>
+
+<main>
+<section class="summary">
+  <div class="card"><span>Total Outstanding</span><strong id="totalOutstanding">₹0</strong></div>
+  <div class="card"><span>EMI Loans</span><strong id="emiTotal">₹0</strong></div>
+  <div class="card"><span>Interest-Only</span><strong id="interestTotal">₹0</strong></div>
+</section>
+
+<section>
+  <div class="sectionTitle"><h2>My Loans</h2><button id="exportBtn" class="secondary">Backup</button></div>
+  <div id="loans"></div>
+</section>
+
+<section id="formSection" class="hidden">
+  <h2 id="formTitle">Add Loan</h2>
+  <form id="loanForm">
+    <label>Loan name<input id="name" required placeholder="e.g. Agricultural Loan"></label>
+    <label>Loan type
+      <select id="type">
+        <option value="interest">Interest Only / Yearly Renewal</option>
+        <option value="emi">EMI Loan</option>
+      </select>
+    </label>
+    <label>Current principal (₹)<input id="principal" type="number" min="0" step="0.01" required></label>
+    <label>Interest rate (% per year)<input id="rate" type="number" min="0" step="0.01" required></label>
+    <div id="emiFields" class="hidden">
+      <label>Monthly EMI (₹)<input id="emi" type="number" min="0" step="0.01"></label>
+    </div>
+    <div id="interestFields">
+      <label>Payment frequency
+        <select id="frequency">
+          <option value="yearly">Yearly</option>
+          <option value="halfyearly">Half-yearly</option>
+          <option value="quarterly">Quarterly</option>
+        </select>
+      </label>
+      <label>Next renewal / interest due date<input id="dueDate" type="date"></label>
+    </div>
+    <div class="actions">
+      <button type="submit" class="primary">Save Loan</button>
+      <button type="button" id="cancelBtn" class="secondary">Cancel</button>
+    </div>
+  </form>
+</section>
+
+<section id="paymentSection" class="hidden">
+  <h2>Record Payment</h2>
+  <p id="paymentLoanName"></p>
+  <form id="paymentForm">
+    <input id="paymentLoanId" type="hidden">
+    <label>Payment date<input id="paymentDate" type="date" required></label>
+    <label>Payment amount (₹)<input id="paymentAmount" type="number" min="0" step="0.01" required></label>
+    <label>Payment type
+      <select id="paymentType">
+        <option value="interest">Interest</option>
+        <option value="principal">Principal</option>
+      </select>
+    </label>
+    <label>Note<input id="paymentNote" placeholder="e.g. Annual renewal interest"></label>
+    <div class="actions">
+      <button type="submit" class="primary">Record Payment</button>
+      <button type="button" id="cancelPayment" class="secondary">Cancel</button>
+    </div>
+  </form>
+</section>
+</main>
+
+<template id="loanTemplate">
+<article class="loan card">
+  <div class="loanTop"><div><h3 class="loanName"></h3><span class="badge loanType"></span></div><strong class="balance"></strong></div>
+  <div class="details"></div>
+  <div class="actions">
+    <button class="pay secondary">Record Payment</button>
+    <button class="edit secondary">Edit</button>
+    <button class="history secondary">History</button>
+    <button class="delete danger">Delete</button>
+  </div>
+  <div class="historyBox hidden"></div>
+</article>
+</template>
+
+<footer>Version 1 • Data is stored locally on this device.</footer>
+<script src="app.js"></script>
+</body>
+</html>

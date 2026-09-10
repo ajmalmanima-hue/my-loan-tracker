@@ -1,20 +1,28 @@
-# My Loan Tracker V4 — Fixed
+# My Loan Tracker V4
 
-This package fixes the V4 delivery/login problem and keeps the existing Supabase database schema.
+V4 keeps the existing V3.5 Supabase database schema. No SQL migration is required.
 
-## Important
-Do **not** replace your existing `config.js` in GitHub. Keep the working file that already contains your Supabase Project URL and public anon/publishable key.
-
-Upload/replace the other V4 files. `config.js.example` is only a reference.
+## Upgrade
+1. Keep your existing working `config.js` from V3.5/GitHub. Do NOT replace it with `config.js.example`.
+2. Upload the V4 files to the GitHub Pages repository: `index.html`, `style.css`, `app.js`, `manifest.json`, `sw.js`, and the two icons.
+3. Do not upload `config.js.example` as `config.js`.
+4. Open the site and do a hard refresh in Firefox (`Ctrl+Shift+R` on desktop). On mobile, close the tab/PWA and reopen it.
 
 ## V4 features
-- EMI payments stored safely as interest + principal rows (compatible with the existing database constraint).
-- Edit/delete payment history.
-- EMI payment editing restores/recalculates principal.
-- Future EMI schedule.
-- Extra principal payment simulator.
-- Dashboard totals, search, filters and overdue indicator.
-- JSON backup.
-- Network-first service worker with a new cache version.
+- Supabase sign-in/sign-up with visible errors and no accidental form reload
+- EMI payment automatically split into interest + principal
+- Edit/delete individual interest/principal payments
+- Edit/delete grouped EMI payments
+- Future EMI schedule
+- Extra principal payment simulator
+- Dashboard totals and principal-repaid progress
+- Estimated debt-free date for EMI loans
+- Upcoming/overdue due-date panel
+- Payment calendar for the next 90 days
+- Monthly/yearly reports and interest analysis
+- CSV export and browser Print/PDF
+- Full JSON backup
+- Search/filter
+- Browser reminder permission (checks due items when the app is opened; true background reminders depend on browser/PWA support)
 
-No Supabase SQL change is required.
+No service_role/secret key belongs in the frontend.

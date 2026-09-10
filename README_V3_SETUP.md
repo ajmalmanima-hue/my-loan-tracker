@@ -29,4 +29,7 @@ Recommended upload order:
 8. Wait for GitHub Pages deployment, then hard refresh with Ctrl+Shift+R
 
 \n### EMI payment behavior\n
-For EMI loans, Record Payment no longer asks for Interest or Principal. It records one EMI payment and automatically splits the EMI using the current monthly interest rate and outstanding principal. The principal portion reduces the loan balance. Interest-only loans retain separate Interest/Principal payment choices.
+For EMI loans, Record Payment no longer asks for Interest or Principal. It automatically splits the EMI using the current monthly interest rate and outstanding principal, then stores the two portions as standard `interest` and `principal` payment records. This keeps the existing Supabase payment constraint unchanged. The principal portion reduces the loan balance. Interest-only loans retain separate Interest/Principal payment choices.
+
+\n### Future EMI Schedule\n
+EMI loans now have a **Schedule** button. It projects each future EMI from the current outstanding principal using monthly interest (annual rate ÷ 12), showing opening balance, interest, EMI, principal, closing balance, number of payments, and total future interest. The final payment is automatically reduced when necessary. The calculation assumes the rate and EMI remain unchanged. The loan's `due_date` is used as the next EMI date for EMI loans.

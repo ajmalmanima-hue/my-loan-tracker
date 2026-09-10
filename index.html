@@ -87,10 +87,19 @@
         </label>
         <label>Next due date<input id="dueDate" type="date"></label>
       </div>
+      <div id="emiDateFields" class="hidden">
+        <label>Next EMI date<input id="emiDueDate" type="date"></label>
+      </div>
       <label>Notes<input id="notes"></label>
       <button class="primary" type="submit">Save Loan</button>
       <button type="button" id="cancelLoan">Cancel</button>
     </form>
+  </section>
+
+  <section id="scheduleSec" class="hidden">
+    <h2>Future EMI Schedule</h2>
+    <div id="scheduleBox" class="card"></div>
+    <button type="button" id="closeSchedule">Close</button>
   </section>
 
   <section id="paySec" class="hidden">

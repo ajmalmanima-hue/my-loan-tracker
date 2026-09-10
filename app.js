@@ -26,6 +26,7 @@ function fields(){
   const e=$("type").value==="emi";
   $("emiFields").classList.toggle("hidden",!e);
   $("intFields").classList.toggle("hidden",e);
+  $("emiDateFields").classList.toggle("hidden",!e);
   $("emi").required=e;
 }
 function isOverdue(l){
@@ -95,7 +96,7 @@ async function render(){
     const a=document.createElement("article");
     a.className="card loan";
     const detail=l.loan_type==="emi"
-      ? `Monthly EMI: <b>${money(l.emi)}</b><br>Rate: <b>${l.interest_rate}% p.a.</b>`
+      ? `Monthly EMI: <b>${money(l.emi)}</b><br>Rate: <b>${l.interest_rate}% p.a.</b><br>Next EMI: <b>${fmt(l.due_date)}</b>`
       : `Rate: <b>${l.interest_rate}% p.a.</b><br>${l.frequency} interest: <b>${money(dueInterest)}</b><br>Next due: <b>${fmt(l.due_date)}</b> ${status}`;
 
     a.innerHTML=`
@@ -117,6 +118,7 @@ async function render(){
       </div>
       <div class="history hidden"></div>`;
 
+    a.querySelector('[data-a="schedule"]').onclick=()=>showSchedule(l.id);
     a.querySelector('[data-a="pay"]').onclick=()=>showPay(l.id);
     a.querySelector('[data-a="edit"]').onclick=()=>showEdit(l.id);
     a.querySelector('[data-a="del"]').onclick=async()=>{
@@ -145,15 +147,70 @@ function showAdd(){
   fields();
   $("loanSec").classList.remove("hidden");
   $("paySec").classList.add("hidden");
+  $("scheduleSec").classList.add("hidden");
 }
 function showEdit(id){
   const l=loans.find(x=>x.id===id); editing=id;
   $("loanTitle").textContent="Edit Loan";
   $("name").value=l.name;$("type").value=l.loan_type;$("principal").value=l.principal;
   $("rate").value=l.interest_rate;$("emi").value=l.emi||"";
-  $("frequency").value=l.frequency||"yearly";$("dueDate").value=l.due_date||"";
+  $("frequency").value=l.frequency||"yearly";
+  $("dueDate").value=l.loan_type==="interest"?(l.due_date||""):"";
+  $("emiDueDate").value=l.loan_type==="emi"?(l.due_date||""):"";
   $("notes").value=l.notes||"";fields();
-  $("loanSec").classList.remove("hidden");$("paySec").classList.add("hidden");
+  $("loanSec").classList.remove("hidden");$("paySec").classList.add("hidden");$("scheduleSec").classList.add("hidden");
+}
+function addMonths(dateString, months){
+  const d=new Date(dateString+"T00:00:00");
+  const day=d.getDate();
+  d.setMonth(d.getMonth()+months);
+  if(d.getDate()!==day)d.setDate(0);
+  return d.toISOString().slice(0,10);
+}
+function showSchedule(id){
+  const l=loans.find(x=>x.id===id);
+  if(!l||l.loan_type!=="emi")return;
+  let balance=Math.max(0,+l.principal||0);
+  const emi=Math.max(0,+l.emi||0);
+  const monthlyRate=Math.max(0,+l.interest_rate||0)/100/12;
+  let date=l.due_date||today();
+  const rows=[];
+  let totalInterest=0,totalPayment=0,n=0;
+  if(balance<=0){
+    $("scheduleBox").innerHTML="<b>This loan is already fully paid.</b>";
+  }else if(emi<=0){
+    $("scheduleBox").innerHTML="<b>Set an EMI amount greater than zero to generate the schedule.</b>";
+  }else{
+    while(balance>0.005 && n<600){
+      n++;
+      const opening=balance;
+      const interestPart=opening*monthlyRate;
+      const payment=Math.min(emi,opening+interestPart);
+      const principalPart=Math.max(0,payment-interestPart);
+      balance=Math.max(0,opening-principalPart);
+      totalInterest+=interestPart;
+      totalPayment+=payment;
+      rows.push({n,date,opening,interestPart,payment,principalPart,balance});
+      date=addMonths(date,1);
+    }
+    const firstDate=rows[0]?.date;
+    $("scheduleBox").innerHTML=`
+      <div class="schedule-head">
+        <div class="mini">Current balance<b>${money(l.principal)}</b></div>
+        <div class="mini">Future interest<b>${money(totalInterest)}</b></div>
+        <div class="mini">Future payments<b>${money(totalPayment)}</b></div>
+      </div>
+      <div class="schedule-note">Assumes the interest rate and EMI stay unchanged. Next EMI date: ${fmt(firstDate)}. Estimated payments: ${rows.length}.</div>
+      <div style="overflow:auto">
+      <table class="schedule-table">
+        <thead><tr><th>#</th><th>Date</th><th>Opening</th><th>Interest</th><th>EMI</th><th>Principal</th><th>Closing</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${r.n}</td><td>${fmt(r.date)}</td><td>${money(r.opening)}</td><td>${money(r.interestPart)}</td><td>${money(r.payment)}</td><td>${money(r.principalPart)}</td><td>${money(r.balance)}</td></tr>`).join("")}</tbody>
+      </table></div>`;
+  }
+  $("scheduleSec").classList.remove("hidden");
+  $("loanSec").classList.add("hidden");
+  $("paySec").classList.add("hidden");
+  $("scheduleSec").scrollIntoView({behavior:"smooth",block:"start"});
 }
 function showPay(id){
   const l=loans.find(x=>x.id===id);
@@ -186,6 +243,7 @@ $("type").onchange=fields;
 $("add").onclick=showAdd;
 $("cancelLoan").onclick=()=>$("loanSec").classList.add("hidden");
 $("cancelPay").onclick=()=>$("paySec").classList.add("hidden");
+$("closeSchedule").onclick=()=>$("scheduleSec").classList.add("hidden");
 $("search").oninput=render;
 $("filter").onchange=render;
 
@@ -194,7 +252,8 @@ $("loanForm").onsubmit=async e=>{
   const p={
     name:$("name").value.trim(),loan_type:$("type").value,principal:+$("principal").value,
     interest_rate:+$("rate").value,emi:+$("emi").value||0,frequency:$("frequency").value,
-    due_date:$("dueDate").value||null,notes:$("notes").value.trim()||null
+    due_date:($("type").value==="emi"?$("emiDueDate").value:$("dueDate").value)||null,
+    notes:$("notes").value.trim()||null
   };
   const r=editing?await sb.from("loans").update(p).eq("id",editing):await sb.from("loans").insert(p);
   if(r.error)alert(r.error.message);else{$("loanSec").classList.add("hidden");load();}
@@ -213,11 +272,23 @@ $("payForm").onsubmit=async e=>{
     const interestPart=Math.min(amt,Math.max(0,monthlyRate*(+l.principal||0)));
     const principalPart=Math.max(0,amt-interestPart);
 
-    const r=await sb.from("payments").insert({
-      loan_id:id,payment_date:$("payDate").value,amount:amt,
-      payment_type:"emi",note:$("payNote").value.trim()||null
+    // Store the EMI as two database entries because the existing
+    // payments table intentionally allows only "interest" or "principal".
+    const baseNote=$("payNote").value.trim();
+    const rows=[];
+    if(interestPart>0) rows.push({
+      loan_id:id,payment_date:$("payDate").value,amount:interestPart,
+      payment_type:"interest",note:`EMI interest${baseNote?" — "+baseNote:""}`
     });
-    if(r.error){alert(r.error.message);return}
+    if(principalPart>0) rows.push({
+      loan_id:id,payment_date:$("payDate").value,amount:principalPart,
+      payment_type:"principal",note:`EMI principal${baseNote?" — "+baseNote:""}`
+    });
+
+    if(rows.length){
+      const r=await sb.from("payments").insert(rows);
+      if(r.error){alert(r.error.message);return}
+    }
 
     if(principalPart>0){
       const u=await sb.from("loans").update({

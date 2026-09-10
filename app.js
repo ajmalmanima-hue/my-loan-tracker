@@ -9,7 +9,7 @@ const sb = configured
   ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
   : null;
 
-let loans = [], editing = null, signup = false;
+let loans = [], editing = null, signup = false, paymentCache = {};
 
 const $ = x => document.getElementById(x);
 const money = n => new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(+n||0);
@@ -36,6 +36,16 @@ async function load(){
   const r=await sb.from("loans").select("*").order("created_at");
   if(r.error){alert(r.error.message);return}
   loans=r.data||[];
+
+  // Load payment history once, then render immediately from memory.
+  paymentCache={};
+  if(loans.length){
+    const p=await sb.from("payments").select("*").in("loan_id",loans.map(x=>x.id)).order("payment_date",{ascending:false});
+    if(p.error){alert(p.error.message);return}
+    for(const row of p.data||[]){
+      (paymentCache[row.loan_id] ||= []).push(row);
+    }
+  }
   render();
 }
 async function payments(id){
@@ -44,7 +54,7 @@ async function payments(id){
   return r.data||[];
 }
 async function paymentTotals(id){
-  const ps=await payments(id);
+  const ps=paymentCache[id] || await payments(id);
   return {
     payments:ps,
     interestPaid:ps.filter(p=>p.payment_type==="interest").reduce((s,p)=>s+(+p.amount||0),0),
@@ -60,7 +70,7 @@ function filteredLoans(){
     return match && type;
   });
 }
-async function render(){
+function render(){
   const emiTotal=loans.filter(x=>x.loan_type==="emi").reduce((s,x)=>s+ +x.principal,0);
   const intTotal=loans.filter(x=>x.loan_type==="interest").reduce((s,x)=>s+ +x.principal,0);
   const dueTotal=loans.filter(x=>x.loan_type==="interest").reduce((s,x)=>s+interest(x),0);
@@ -86,7 +96,12 @@ async function render(){
   }
 
   for(const l of list){
-    const totals=await paymentTotals(l.id);
+    const ps=paymentCache[l.id]||[];
+    const totals={
+      payments:ps,
+      interestPaid:ps.filter(p=>p.payment_type==="interest").reduce((s,p)=>s+(+p.amount||0),0),
+      principalPaid:ps.filter(p=>p.payment_type==="principal").reduce((s,p)=>s+(+p.amount||0),0)
+    };
     const overdue=isOverdue(l);
     const dueInterest=l.loan_type==="interest"?interest(l):0;
     const status=l.loan_type==="interest"

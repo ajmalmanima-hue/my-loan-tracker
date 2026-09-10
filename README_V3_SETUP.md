@@ -33,3 +33,7 @@ For EMI loans, Record Payment no longer asks for Interest or Principal. It autom
 
 \n### Future EMI Schedule\n
 EMI loans now have a **Schedule** button. It projects each future EMI from the current outstanding principal using monthly interest (annual rate ÷ 12), showing opening balance, interest, EMI, principal, closing balance, number of payments, and total future interest. The final payment is automatically reduced when necessary. The calculation assumes the rate and EMI remain unchanged. The loan's `due_date` is used as the next EMI date for EMI loans.
+
+
+### V3.5 stability fix
+The dashboard now loads payment history in one request before rendering loan cards, preventing a blank loan list while individual payment requests are waiting. The service worker is also network-first when online so updated app files are not trapped behind an old cache.

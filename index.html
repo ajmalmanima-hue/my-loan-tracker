@@ -10,13 +10,12 @@
 </head>
 <body>
 <header>
-  <div><h1>My Loan Tracker</h1><p>Cloud database • EMI & interest-only</p></div>
+  <div><h1>My Loan Tracker</h1><p>Private cloud loan manager • EMI & interest-only</p></div>
   <div id="userArea" class="hidden"><span id="userEmail"></span><button id="logoutBtn" type="button">Log out</button></div>
 </header>
 <div id="notice" class="notice hidden"></div>
-
 <section id="auth" class="auth">
-  <div class="card auth-card">
+  <div class="card">
     <h2 id="authTitle">Sign in</h2>
     <p id="authMsg">Your records are stored in your private Supabase database.</p>
     <form id="authForm">
@@ -27,83 +26,63 @@
     <button type="button" class="link" id="toggle">Create a new account</button>
   </div>
 </section>
-
 <main id="app" class="hidden">
   <section class="summary">
     <div class="card"><span>Total Outstanding</span><strong id="total">₹0.00</strong></div>
-    <div class="card"><span>Monthly EMI</span><strong id="monthlyEmi">₹0.00</strong></div>
+    <div class="card"><span>Monthly EMI</span><strong id="emiTotal">₹0.00</strong></div>
     <div class="card"><span>Interest Only</span><strong id="intTotal">₹0.00</strong></div>
     <div class="card"><span>Interest Due</span><strong id="dueTotal">₹0.00</strong></div>
     <div class="card"><span>Interest Paid</span><strong id="paidTotal">₹0.00</strong></div>
     <div class="card"><span>Overdue</span><strong id="overdueTotal">0</strong></div>
   </section>
 
-  <section class="quick-grid">
-    <div class="card quick"><span>Principal repaid</span><strong id="progressText">0%</strong><div class="progress"><i id="progressBar"></i></div><small id="progressDetail">No payments yet</small></div>
-    <div class="card quick"><span>Estimated debt-free date</span><strong id="debtFreeDate">—</strong><small id="debtFreeDetail">Based on current EMI and rate</small></div>
-    <div class="card quick"><span>Next due</span><strong id="nextDue">—</strong><small id="nextDueDetail">No upcoming payments</small></div>
+  <section class="quick card">
+    <div><b>Debt overview</b><span id="overviewText">Loading…</span></div>
+    <div class="progress"><div id="progressBar"></div></div>
+    <div class="quickStats"><span>Principal tracked <b id="principalTracked">₹0</b></span><span>Principal paid <b id="principalPaid">₹0</b></span><span>Progress <b id="progressPct">0%</b></span><span>Debt-free estimate <b id="debtFreeDate">—</b></span></div>
   </section>
 
-  <section class="card tools-card">
-    <div class="tool-head"><div><h2>Loan tools</h2><p>Reports, schedule, simulator and backup</p></div><button id="notifyBtn" type="button">Enable reminders</button></div>
-    <div class="tool-grid">
-      <button id="reportBtn" type="button">📊 Reports</button>
-      <button id="calendarBtn" type="button">📅 Payment calendar</button>
-      <button id="simBtn" type="button">🧮 Extra payment simulator</button>
-      <button id="exportCsv" type="button">⬇ Export CSV</button>
-      <button id="printReport" type="button">🖨 Print / PDF</button>
-      <button id="backup" type="button">💾 Full backup</button>
-    </div>
-  </section>
-
-  <div class="bar">
-    <h2>My Loans</h2>
-    <div class="toolbar">
-      <input id="search" class="search" type="search" placeholder="Search loans…">
-      <select id="filter"><option value="all">All loans</option><option value="emi">EMI loans</option><option value="interest">Interest only</option><option value="overdue">Overdue</option></select>
-      <button class="primary" id="add" type="button">+ Add Loan</button>
-    </div>
+  <div class="toolbar card">
+    <div class="toolbarTop"><h2>My Loans</h2><div class="actions"><button id="remindersBtn" type="button">Enable reminders</button><button id="backup" type="button">Backup</button><button id="restoreBtn" type="button">Restore</button><input id="restoreFile" type="file" accept="application/json" class="hidden"><button class="primary" id="add" type="button">+ Add Loan</button></div></div>
+    <div class="filters"><input id="search" class="search" type="search" placeholder="Search loans…"><select id="filter"><option value="all">All loans</option><option value="emi">EMI loans</option><option value="interest">Interest only</option><option value="overdue">Overdue</option></select><select id="categoryFilter"><option value="all">All categories</option></select></div>
   </div>
   <div id="loans"></div>
 
-  <section id="loanSec" class="hidden section-block">
-    <h2 id="loanTitle">Add Loan</h2>
-    <form id="loanForm" class="card">
-      <label>Loan name<input id="name" required placeholder="Agricultural Loan"></label>
-      <label>Loan type<select id="type"><option value="interest">Interest Only / Yearly Renewal</option><option value="emi">EMI Loan</option></select></label>
-      <label>Current principal (₹)<input id="principal" type="number" min="0" step=".01" required></label>
-      <label>Interest rate (% p.a.)<input id="rate" type="number" min="0" step=".01" required></label>
-      <div id="emiFields" class="hidden"><label>Monthly EMI (₹)<input id="emi" type="number" min="0" step=".01"></label></div>
-      <div id="intFields"><label>Frequency<select id="frequency"><option value="yearly">Yearly</option><option value="halfyearly">Half-yearly</option><option value="quarterly">Quarterly</option></select></label><label>Next due date<input id="dueDate" type="date"></label></div>
-      <div id="emiDateFields" class="hidden"><label>Next EMI date<input id="emiDueDate" type="date"></label></div>
-      <label>Notes<input id="notes"></label>
-      <button class="primary" type="submit">Save Loan</button><button type="button" id="cancelLoan">Cancel</button>
-    </form>
-  </section>
+  <section id="loanSec" class="hidden"><h2 id="loanTitle">Add Loan</h2><form id="loanForm" class="card">
+    <label>Loan name<input id="name" required placeholder="Agricultural Loan"></label>
+    <label>Category<select id="category"><option>Bank</option><option>Gold Loan</option><option>Agricultural</option><option>Personal</option><option>Housing</option><option>Vehicle</option><option>Other</option></select></label>
+    <label>Loan type<select id="type"><option value="interest">Interest Only / Yearly Renewal</option><option value="emi">EMI Loan</option></select></label>
+    <label>Current principal (₹)<input id="principal" type="number" min="0" step=".01" required></label>
+    <label>Interest rate (% p.a.)<input id="rate" type="number" min="0" step=".01" required></label>
+    <div id="emiFields" class="hidden"><label>Monthly EMI (₹)<input id="emi" type="number" min="0" step=".01"></label></div>
+    <div id="intFields"><label>Frequency<select id="frequency"><option value="yearly">Yearly</option><option value="halfyearly">Half-yearly</option><option value="quarterly">Quarterly</option></select></label><label>Next interest due date<input id="dueDate" type="date"></label></div>
+    <div id="emiDateFields" class="hidden"><label>Next EMI date<input id="emiDueDate" type="date"></label></div>
+    <label>Notes<textarea id="notes" rows="3"></textarea></label>
+    <div class="formActions"><button class="primary" type="submit">Save Loan</button><button type="button" id="cancelLoan">Cancel</button></div>
+  </form></section>
 
-  <section id="scheduleSec" class="hidden section-block"><h2>Future EMI Schedule</h2><div id="scheduleBox" class="card"></div><button type="button" id="closeSchedule">Close</button></section>
+  <section id="scheduleSec" class="hidden"><div class="sectionTitle"><h2>Future EMI Schedule</h2><button type="button" id="closeSchedule">Close</button></div><div id="scheduleBox" class="card"></div></section>
 
-  <section id="paySec" class="hidden section-block">
-    <h2 id="payTitle">Record Payment</h2>
-    <form id="payForm" class="card">
-      <b id="payLoanName"></b><input id="payLoanId" type="hidden">
-      <div id="emiPaymentHelp" class="help hidden">For an EMI loan, enter the combined EMI. The app automatically splits it into interest and principal and updates the balance.</div>
-      <label>Date<input id="payDate" type="date" required></label>
-      <label>Amount (₹)<input id="amount" type="number" min="0.01" step=".01" required></label>
-      <div id="payTypeWrap"><label>Type<select id="payType"><option value="interest">Interest</option><option value="principal">Principal</option></select></label></div>
-      <div id="emiSplit" class="payment-summary hidden"><div class="mini">Interest portion<b id="emiInterest">₹0.00</b></div><div class="mini">Principal portion<b id="emiPrincipal">₹0.00</b></div></div>
-      <label>Note<input id="payNote"></label>
-      <button class="primary" type="submit">Record Payment</button><button type="button" id="cancelPay">Cancel</button>
-    </form>
-  </section>
+  <section id="paySec" class="hidden"><h2 id="payTitle">Record Payment</h2><form id="payForm" class="card">
+    <b id="payLoanName"></b><input id="payLoanId" type="hidden">
+    <div id="emiPaymentHelp" class="help hidden">For an EMI loan, enter the combined EMI. The app calculates interest and principal automatically.</div>
+    <label>Date<input id="payDate" type="date" required></label><label>Amount (₹)<input id="amount" type="number" min="0.01" step=".01" required></label>
+    <div id="payTypeWrap"><label>Type<select id="payType"><option value="interest">Interest</option><option value="principal">Principal</option></select></label></div>
+    <div id="emiSplit" class="payment-summary hidden"><div class="mini">Interest portion<b id="emiInterest">₹0.00</b></div><div class="mini">Principal portion<b id="emiPrincipal">₹0.00</b></div></div>
+    <label>Note<input id="payNote"></label><div class="formActions"><button class="primary" type="submit">Record Payment</button><button type="button" id="cancelPay">Cancel</button></div>
+  </form></section>
 
-  <section id="reportSec" class="hidden section-block"><div class="section-title"><h2>Reports & analysis</h2><button type="button" data-close="reportSec">Close</button></div><div id="reportBox"></div></section>
-  <section id="calendarSec" class="hidden section-block"><div class="section-title"><h2>Payment calendar</h2><button type="button" data-close="calendarSec">Close</button></div><div id="calendarBox"></div></section>
-  <section id="simSec" class="hidden section-block"><div class="section-title"><h2>Extra principal simulator</h2><button type="button" data-close="simSec">Close</button></div><div id="simBox" class="card"></div></section>
+  <section id="historySec" class="hidden"><div class="sectionTitle"><h2 id="historyTitle">Payment History</h2><button id="closeHistory" type="button">Close</button></div><div id="historyBox" class="card"></div></section>
+
+  <section id="simSec" class="hidden"><div class="sectionTitle"><h2>What-if / Extra Payment Simulator</h2><button id="closeSim" type="button">Close</button></div><div class="card simulator">
+    <label>Loan<select id="simLoan"></select></label><label>New monthly EMI (optional)<input id="simEmi" type="number" min="0" step=".01" placeholder="Keep current EMI"></label><label>Extra one-time principal payment (₹)<input id="simExtra" type="number" min="0" step=".01" value="0"></label><label>Extra payment date<input id="simDate" type="date"></label><button id="runSim" class="primary" type="button">Calculate</button><div id="simResult"></div>
+  </div></section>
+
+  <section id="reportsSec"><div class="sectionTitle"><h2>Reports & Analysis</h2><div><button id="csvBtn" type="button">Export CSV</button><button id="printBtn" type="button">Print / PDF</button></div></div><div id="reportsBox" class="reportsGrid"></div></section>
+  <section id="calendarSec"><div class="sectionTitle"><h2>Payment Calendar — Next 3 Months</h2></div><div id="calendarBox" class="calendarGrid"></div></section>
 </main>
 <footer>V4 • Loan records are stored in Supabase PostgreSQL.</footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
-</body>
-</html>
+</body></html>

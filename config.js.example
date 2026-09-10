@@ -1,4 +1,4 @@
-// Copy this file to config.js and add your existing Supabase project values.
+// Copy this file to config.js only if you are setting up the app for the first time.
 // Keep your existing working config.js when upgrading from V3.5.
-window.SUPABASE_URL="https://YOUR_PROJECT.supabase.co";
-window.SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY";
+window.SUPABASE_URL = "https://giajhnfpdwprwbqjoerg.supabase.co";
+window.SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY";
